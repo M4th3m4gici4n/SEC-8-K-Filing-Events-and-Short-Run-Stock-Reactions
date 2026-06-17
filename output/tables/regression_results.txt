@@ -1,0 +1,37 @@
+
+\begingroup
+\centering
+\begin{tabular}{lcccccc}
+   \tabularnewline \midrule \midrule
+   Dependent Variables: & \multicolumn{2}{c}{CAR\_m1\_p1} & \multicolumn{2}{c}{CAR\_0\_p1} & \multicolumn{2}{c}{CAR\_0\_p5}\\
+   Model:                                               & (1)      & (2)      & (3)          & (4)            & (5)           & (6)\\  
+   \midrule
+   \emph{Variables}\\
+   Constant                                             & -0.0021  &          & -0.0023      &                & -0.0033       &   \\   
+                                                        & (0.0044) &          & (0.0031)     &                & (0.0042)      &   \\   
+   item\_group $=$ debt\_or\_financing\_obligation      & 0.0118   & 0.0095   & 0.0173       & 0.0148         & 0.0334$^{**}$ & 0.0290$^{**}$\\   
+                                                        & (0.0116) & (0.0105) & (0.0130)     & (0.0128)       & (0.0143)      & (0.0098)\\   
+   item\_group $=$ earnings\_or\_results                & 0.0040   & 0.0024   & 0.0042       & 0.0032         & 0.0033        & 0.0034\\   
+                                                        & (0.0044) & (0.0044) & (0.0036)     & (0.0036)       & (0.0053)      & (0.0057)\\   
+   item\_group $=$ leadership\_change                   & -0.0013  & 0.0002   & 0.0009       & 0.0023         & 0.0032        & 0.0066\\   
+                                                        & (0.0052) & (0.0050) & (0.0041)     & (0.0047)       & (0.0057)      & (0.0072)\\   
+   item\_group $=$ material\_agreement                  & 0.0141   & 0.0146   & 0.0174$^{*}$ & 0.0178$^{*}$   & 0.0294$^{**}$ & 0.0307$^{***}$\\   
+                                                        & (0.0089) & (0.0085) & (0.0091)     & (0.0085)       & (0.0092)      & (0.0079)\\   
+   item\_group $=$ merger\_acquisition\_asset\_sale     & 0.0014   & -0.0052  & -0.0034      & -0.0101$^{**}$ & 0.0251        & 0.0157\\   
+                                                        & (0.0074) & (0.0074) & (0.0036)     & (0.0044)       & (0.0148)      & (0.0114)\\   
+   \midrule
+   \emph{Fixed-effects}\\
+   ticker                                               &          & Yes      &              & Yes            &               & Yes\\  
+   year                                                 &          & Yes      &              & Yes            &               & Yes\\  
+   \midrule
+   \emph{Fit statistics}\\
+   Observations                                         & 496      & 496      & 496          & 496            & 496           & 496\\  
+   R$^2$                                                & 0.00468  & 0.07015  & 0.00620      & 0.05322        & 0.00953       & 0.05861\\  
+   Within R$^2$                                         &          & 0.00298  &              & 0.00535        &               & 0.00851\\  
+   \midrule \midrule
+   \multicolumn{7}{l}{\emph{Clustered (ticker) standard-errors in parentheses}}\\
+   \multicolumn{7}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+\end{tabular}
+\par\endgroup
+
+
