@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # SEC 8-K Filing Events and Short-Run Stock Reactions
 
 This project studies whether publicly traded firms experience abnormal stock returns around major SEC 8-K filing events. The project combines SEC EDGAR filing data, daily stock return data, event-study methodology, and regression analysis in R.
