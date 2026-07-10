@@ -1,0 +1,449 @@
+\documentclass[12pt]{article}
+
+% ------------------------------------------------------------
+% Packages
+% ------------------------------------------------------------
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{threeparttable}
+
+\onehalfspacing
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+    citecolor=black
+}
+
+% ------------------------------------------------------------
+% Title
+% ------------------------------------------------------------
+\title{SEC 8-K Filing Events and Short-Run Stock Market Reactions}
+\author{Tim Anderson}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This project studies short-run abnormal stock returns around SEC Form 8-K filings and asks whether market reactions differ across filing item types. I construct an event-study dataset from SEC company-submission records for current S\&P 500 constituents, retain 8-K and 8-K/A filings from 2018 through 2025, parse filing item codes, merge filing events to daily equity returns, and calculate market-adjusted abnormal returns using SPY as the benchmark. The committed cumulative-abnormal-return output contains 500 events with complete $[-5,+5]$ trading-day windows. Of these, 496 observations fall into the six filing categories retained in the main regressions.
+
+The descriptive results show that material-agreement and debt-or-financing filings have the largest positive average post-filing cumulative abnormal returns, although these categories contain only 12 and 5 events, respectively. In fixed-effect regressions, material-agreement filings are associated with a 3.07 percentage-point higher $CAR[0,+5]$ than other-event filings, and debt-or-financing filings are associated with a 2.90 percentage-point higher $CAR[0,+5]$. Merger, acquisition, or asset-sale filings are associated with a 1.01 percentage-point lower $CAR[0,+1]$ in the preferred fixed-effect model. Earnings-related and leadership-change coefficients are not statistically distinguishable from zero in the reported specifications. The results demonstrate a reproducible empirical-finance workflow, but the small sizes of several event categories and the use of filing dates rather than first-announcement timestamps require cautious interpretation.
+\end{abstract}
+
+\section{Introduction}
+
+Publicly traded firms are required to disclose material information to investors. One of the principal event-driven disclosure mechanisms in the United States is SEC Form 8-K, often called a ``current report.'' Unlike annual 10-K reports and quarterly 10-Q reports, which are filed on a recurring schedule, Form 8-K is generally triggered by a specific corporate event. These events can include earnings-related information, changes in executive leadership, entry into or termination of material agreements, acquisitions or dispositions, financing obligations, and other developments that may affect firm value.
+
+The central research question is:
+
+\begin{quote}
+Do firms experience abnormal stock returns around major 8-K filings, and do these reactions differ across filing item types?
+\end{quote}
+
+The question connects public disclosure to the basic logic of market efficiency. If a filing contains new value-relevant information, the firm's stock price should adjust when that information becomes public. An event study measures this adjustment by comparing the firm's realized return with a benchmark return representing expected market-wide performance. The difference is the abnormal return.
+
+The project also presents a substantial data-engineering problem. SEC filings are organized by Central Index Key (CIK), while market data are commonly organized by ticker. A usable event-study dataset therefore requires collecting filing histories, preserving identifiers, parsing multi-item 8-K records, classifying disclosures, mapping filings to trading dates, downloading adjusted prices, computing returns, and constructing event windows in trading-day time.
+
+This analysis should not be interpreted as a randomized causal design. It estimates short-run stock-market reactions associated with filing events. A causal interpretation would additionally require that no other firm-specific information systematically coincides with the event window and that the filing date accurately captures the first public release of the information.
+
+\section{Institutional Background}
+
+Form 8-K is used by public companies to report unscheduled material events through the SEC's EDGAR system. The form is organized into numbered items. This structure makes it possible to classify filings into economically meaningful groups.
+
+The principal categories used in this project are:
+
+\begin{itemize}
+    \item \textbf{Item 1.01: Material agreement.} Entry into a material definitive agreement.
+    \item \textbf{Item 1.02: Termination of a material agreement.} Termination of a material definitive agreement.
+    \item \textbf{Item 2.01: Merger, acquisition, or asset sale.} Completion of an acquisition or disposition of assets.
+    \item \textbf{Item 2.02: Earnings or results.} Results of operations and financial condition.
+    \item \textbf{Item 2.03: Debt or financing obligation.} Creation of a direct financial obligation.
+    \item \textbf{Item 5.02: Leadership change.} Departure, election, or appointment of directors or certain officers.
+    \item \textbf{Item 8.01: Other events.} Events that do not fall into a more specific retained category.
+    \item \textbf{Item 9.01: Financial statements and exhibits.} Supporting statements or exhibits, which are not treated as standalone economic events in the main analysis.
+\end{itemize}
+
+A single 8-K can contain several item codes. Counting each code as an independent event would assign the same stock-return realization to multiple observations. The pipeline therefore applies an item-priority rule and retains one primary item per filing accession number for the event-level analysis.
+
+\section{Data}
+
+\subsection{Company and Filing Data}
+
+The company universe is based on current S\&P 500 constituents. The company file contains ticker symbols, Yahoo Finance-compatible tickers, company names, CIKs, GICS sectors, and GICS sub-industries. Duplicate CIKs are removed so that multiple share classes do not generate duplicate SEC filing histories.
+
+For each retained CIK, the project downloads the SEC company-submissions record, including both the recent-filings block and archived submissions files. It retains Forms 8-K and 8-K/A filed between January 1, 2018 and December 31, 2025. The filing metadata include the accession number, filing date, report date, acceptance timestamp, form type, primary document, and SEC item-code string.
+
+\subsection{Stock Returns}
+
+Daily adjusted prices are downloaded from Yahoo Finance. For firm $i$ on trading day $t$, the daily return is
+
+\begin{equation}
+R_{i,t}=\frac{P_{i,t}}{P_{i,t-1}}-1,
+\end{equation}
+
+where $P_{i,t}$ is the adjusted closing price. The SPY exchange-traded fund is used as the market benchmark:
+
+\begin{equation}
+R_{m,t}=\frac{P_{m,t}}{P_{m,t-1}}-1.
+\end{equation}
+
+Using SPY and Yahoo Finance makes the project reproducible without paid access to CRSP or WRDS. The tradeoff is that ticker histories, delisting returns, and historical security identifiers are handled less rigorously than in a professional academic database.
+
+\section{Sample Construction}
+
+The pipeline proceeds as follows. First, SEC item-code strings are split into filing-item rows and assigned to event categories. Second, one primary item is retained for each ticker-accession pair. Third, each firm's return dates are indexed as sequential trading days. Fourth, each filing is matched to the next available trading day. This rule prevents weekend and holiday filings from being assigned to a trading session that occurred before the disclosure.
+
+For each matched event, the project retains returns from five trading days before through five trading days after the event:
+
+\[
+\tau\in\{-5,-4,\ldots,0,\ldots,+4,+5\}.
+\]
+
+An event is retained in the final cumulative-abnormal-return dataset only when all required observations are available for each reported CAR window.
+
+The repository's committed outputs contain 500 complete-window CAR observations. The main regression script retains six categories and excludes the four \texttt{termination\_of\_material\_agreement} observations, producing a regression sample of 496 events. Earlier pipeline attrition counts cannot be reported from the committed outputs because the generated \texttt{sample\_summary.csv} file is not present in the repository.
+
+\begin{table}[H]
+\centering
+\caption{Analysis-Sample Counts Supported by the Committed Outputs}
+\label{tab:analysis_sample}
+\begin{tabular}{lr}
+\toprule
+Sample definition & Events \\
+\midrule
+Complete-window CAR observations across all retained categories & 500 \\
+Main regression sample across six categories & 496 \\
+Termination-of-material-agreement events excluded from regressions & 4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Event-Study Method}
+
+\subsection{Abnormal Returns}
+
+The primary abnormal-return measure is the market-adjusted return:
+
+\begin{equation}
+AR_{i,t}=R_{i,t}-R_{m,t}.
+\end{equation}
+
+This benchmark assumes that the firm's normal daily return is approximately equal to the contemporaneous market return. It is simpler than a market model with an estimated firm-specific intercept and beta, but it is transparent and easy to reproduce.
+
+\subsection{Cumulative Abnormal Returns}
+
+For event $j$ and event window $[a,b]$, the cumulative abnormal return is
+
+\begin{equation}
+CAR_{j,[a,b]}=\sum_{\tau=a}^{b}AR_{j,\tau}.
+\end{equation}
+
+The reported windows are:
+
+\begin{itemize}
+    \item $CAR[-1,+1]$: one trading day before through one trading day after the filing;
+    \item $CAR[0,+1]$: the filing trading day through the next trading day;
+    \item $CAR[0,+5]$: the filing trading day through five trading days after the filing;
+    \item $CAR[-5,+5]$: five trading days before through five trading days after the filing.
+\end{itemize}
+
+The narrow windows are most closely tied to the disclosure date. Wider windows allow for anticipation, delayed reaction, and imperfect event-date measurement, but they also increase exposure to unrelated news.
+
+\subsection{Regression Specification}
+
+The simple specification compares filing categories with the omitted \texttt{other\_events} group:
+
+\begin{equation}
+CAR_j=\alpha+\sum_k\beta_k\mathbf{1}\{ItemGroup_j=k\}+\epsilon_j.
+\end{equation}
+
+The preferred specification includes ticker and year fixed effects:
+
+\begin{equation}
+CAR_j=\sum_k\beta_k\mathbf{1}\{ItemGroup_j=k\}+\gamma_i+\delta_y+\epsilon_j,
+\end{equation}
+
+where $\gamma_i$ denotes ticker fixed effects and $\delta_y$ denotes filing-year fixed effects. Standard errors are clustered by ticker. Each coefficient measures the difference in CAR between the indicated filing category and \texttt{other\_events}, conditional on the included fixed effects.
+
+\section{Results}
+
+\subsection{Distribution of Filing Categories}
+
+Table \ref{tab:item_counts} reports the event counts in the complete-window CAR output. Earnings-related filings are the largest group, followed by other events and leadership changes. Transaction-related categories are much smaller.
+
+\begin{table}[H]
+\centering
+\caption{Complete-Window 8-K Events by Primary Item Group}
+\label{tab:item_counts}
+\begin{tabular}{lr}
+\toprule
+Item group & Events \\
+\midrule
+Earnings or results & 208 \\
+Other events & 147 \\
+Leadership change & 120 \\
+Material agreement & 12 \\
+Debt or financing obligation & 5 \\
+Termination of material agreement & 4 \\
+Merger, acquisition, or asset sale & 4 \\
+\midrule
+Total & 500 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The extreme imbalance in group sizes is economically important. Estimates for earnings, leadership, and other events are based on substantially more information than estimates for material agreements, financing obligations, terminations, and acquisitions. Large point estimates in very small groups should therefore not be interpreted as stable population effects.
+
+\subsection{Average Abnormal Returns Around Filing Dates}
+
+Figure \ref{fig:avg_ar} plots average daily abnormal returns from event time $-5$ through $+5$ for the six groups retained in the main regressions.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{output/figures/average_abnormal_returns_by_item_group.png}
+\caption{Average Abnormal Returns Around 8-K Filing Dates}
+\label{fig:avg_ar}
+\end{figure}
+
+The figure does not show a uniform event-day response across all filing types. Earnings-related, leadership-change, and other-event abnormal returns remain relatively close to zero. Material-agreement filings show a positive average abnormal return at event time zero and again near the end of the post-event window. Merger and acquisition filings show a negative average response near event time zero followed by positive average returns later in the window. The confidence bands for the smallest categories are wide, which is consistent with their limited sample sizes.
+
+\subsection{Cumulative Abnormal Returns}
+
+Tables \ref{tab:car_means} and \ref{tab:car_medians} report the mean and median cumulative abnormal returns, respectively. All returns are expressed in percentage points, and the sample is restricted to events with complete observations for every reported CAR window.
+
+\begin{table}[H]
+\centering
+\begin{threeparttable}
+\caption{Mean Cumulative Abnormal Returns by 8-K Item Group}
+\label{tab:car_means}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{p{0.40\textwidth}rrrrr}
+\toprule
+Item group & $N$ &
+$CAR[-1,+1]$ &
+$CAR[0,+1]$ &
+$CAR[0,+5]$ &
+$CAR[-5,+5]$ \\
+\midrule
+Earnings or results & 208 & 0.186 & 0.188 & -0.004 & 0.677 \\
+Other events & 147 & -0.211 & -0.234 & -0.331 & -0.210 \\
+Leadership change & 120 & -0.342 & -0.140 & -0.014 & -0.156 \\
+Material agreement & 12 & 1.203 & 1.502 & 2.613 & 1.000 \\
+Debt or financing obligation & 5 & 0.973 & 1.495 & 3.010 & 4.741 \\
+Termination of material agreement & 4 & 2.703 & 2.174 & 2.266 & 4.063 \\
+Merger, acquisition, or asset sale & 4 & -0.073 & -0.573 & 2.182 & 2.042 \\
+\bottomrule
+\end{tabular}
+\begin{tablenotes}
+\small
+\item Notes: Entries are mean cumulative abnormal returns in percentage points.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}
+
+\begin{table}[H]
+\centering
+\begin{threeparttable}
+\caption{Median Cumulative Abnormal Returns by 8-K Item Group}
+\label{tab:car_medians}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{p{0.40\textwidth}rrrrr}
+\toprule
+Item group & $N$ &
+$CAR[-1,+1]$ &
+$CAR[0,+1]$ &
+$CAR[0,+5]$ &
+$CAR[-5,+5]$ \\
+\midrule
+Earnings or results & 208 & 0.261 & -0.107 & -0.249 & 0.679 \\
+Other events & 147 & -0.079 & -0.027 & 0.095 & -0.001 \\
+Leadership change & 120 & 0.037 & 0.114 & -0.436 & 0.590 \\
+Material agreement & 12 & 1.700 & 0.880 & 2.254 & 1.529 \\
+Debt or financing obligation & 5 & 1.073 & 1.023 & 2.382 & 6.138 \\
+Termination of material agreement & 4 & 1.828 & 2.295 & 1.396 & 5.135 \\
+Merger, acquisition, or asset sale & 4 & 0.194 & -0.206 & 1.022 & 2.118 \\
+\bottomrule
+\end{tabular}
+\begin{tablenotes}
+\small
+\item Notes: Entries are median cumulative abnormal returns in percentage points.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}
+
+Material-agreement filings have a mean $CAR[0,+1]$ of 1.50 percentage points and a mean $CAR[0,+5]$ of 2.61 percentage points. Their corresponding medians are 0.88 and 2.25 percentage points, indicating that the positive post-filing result is not produced solely by a single extreme observation. Debt-or-financing filings have mean $CAR[0,+1]$ and $CAR[0,+5]$ values of 1.49 and 3.01 percentage points, with corresponding medians of 1.02 and 2.38 percentage points. These estimates are positive, but the category contains only five events.
+
+Termination filings also have positive mean and median CARs across the reported windows, but the group contains only four observations and is excluded from the main regressions. Merger, acquisition, or asset-sale filings have a mean $CAR[0,+1]$ of $-0.57$ percentage points and a median of $-0.21$ percentage points. Over the wider $[0,+5]$ window, however, the mean rises to 2.18 percentage points and the median rises to 1.02 percentage points, showing that the estimated response depends strongly on the event window.
+
+Earnings-related filings have a modestly positive mean $CAR[0,+1]$ of 0.19 percentage points but a negative median of $-0.11$ percentage points. Leadership-change filings have a mean $CAR[0,+1]$ of $-0.14$ percentage points and a positive median of 0.11 percentage points. These differences between means and medians indicate that the distributions are not symmetric and that some category averages are affected by relatively large positive or negative observations.
+
+\subsection{Regression Results}
+
+Table \ref{tab:regressions} reports the simple and fixed-effect regressions. Coefficients and clustered standard errors are expressed in percentage points. The omitted category is \texttt{other\_events}.
+
+\begin{table}[H]
+\centering
+\begin{threeparttable}
+\caption{Regression Results: CAR Differences Relative to Other Events}
+\label{tab:regressions}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{lrrrrrr}
+\toprule
+& \multicolumn{2}{c}{$CAR[-1,+1]$}
+& \multicolumn{2}{c}{$CAR[0,+1]$}
+& \multicolumn{2}{c}{$CAR[0,+5]$} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+Item group & Simple & FE & Simple & FE & Simple & FE \\
+\midrule
+Debt or financing obligation
+& 1.18 & 0.95 & 1.73 & 1.48 & 3.34$^{**}$ & 2.90$^{**}$ \\
+& (1.16) & (1.05) & (1.30) & (1.28) & (1.43) & (0.98) \\
+Earnings or results
+& 0.40 & 0.24 & 0.42 & 0.32 & 0.33 & 0.34 \\
+& (0.44) & (0.44) & (0.36) & (0.36) & (0.53) & (0.57) \\
+Leadership change
+& -0.13 & 0.02 & 0.09 & 0.23 & 0.32 & 0.66 \\
+& (0.52) & (0.50) & (0.41) & (0.47) & (0.57) & (0.72) \\
+Material agreement
+& 1.41 & 1.46 & 1.74$^{*}$ & 1.78$^{*}$ & 2.94$^{**}$ & 3.07$^{***}$ \\
+& (0.89) & (0.85) & (0.91) & (0.85) & (0.92) & (0.79) \\
+Merger, acquisition, or asset sale
+& 0.14 & -0.52 & -0.34 & -1.01$^{**}$ & 2.51 & 1.57 \\
+& (0.74) & (0.74) & (0.36) & (0.44) & (1.48) & (1.14) \\
+\midrule
+Ticker fixed effects & No & Yes & No & Yes & No & Yes \\
+Year fixed effects & No & Yes & No & Yes & No & Yes \\
+Observations & 496 & 496 & 496 & 496 & 496 & 496 \\
+$R^2$ & 0.00468 & 0.07015 & 0.00620 & 0.05322 & 0.00953 & 0.05861 \\
+Within $R^2$ & --- & 0.00298 & --- & 0.00535 & --- & 0.00851 \\
+\bottomrule
+\end{tabular}
+}
+\begin{tablenotes}
+\small
+\item Notes: Coefficients and standard errors are in percentage points. Clustered standard errors by ticker are in parentheses. The omitted category is \texttt{other\_events}. $^{***}p<0.01$, $^{**}p<0.05$, $^{*}p<0.10$.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}
+
+The strongest positive result concerns material agreements. In the preferred fixed-effect model, material-agreement filings are associated with a 1.78 percentage-point higher $CAR[0,+1]$ than other-event filings, significant at the 10 percent level. The estimated difference rises to 3.07 percentage points for $CAR[0,+5]$ and is significant at the 1 percent level.
+
+Debt-or-financing filings are associated with a 2.90 percentage-point higher $CAR[0,+5]$ in the fixed-effect model, significant at the 5 percent level. The corresponding narrow-window coefficients are positive but statistically imprecise. Because this category contains only five events, the result should be treated as suggestive rather than definitive.
+
+Merger, acquisition, or asset-sale filings are associated with a 1.01 percentage-point lower $CAR[0,+1]$ than other events in the fixed-effect model, significant at the 5 percent level. The coefficient is not statistically significant in the $[-1,+1]$ or $[0,+5]$ windows. This window sensitivity, combined with only four observations, limits the stability of the estimate.
+
+Earnings-related and leadership-change filings do not have statistically significant coefficients in any reported model. Their point estimates are small relative to the uncertainty around them. Thus, the available results do not support a general claim that those categories systematically outperform or underperform other-event filings over the reported windows.
+
+The preferred fixed-effect estimates are shown in Figures \ref{fig:coef_m1_p1}--\ref{fig:coef_0_p5}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.90\textwidth]{output/figures/car_coefficients_m1_p1.png}
+\caption{Fixed-Effect Regression Coefficients for $CAR[-1,+1]$}
+\label{fig:coef_m1_p1}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.90\textwidth]{output/figures/car_coefficients_0_p1.png}
+\caption{Fixed-Effect Regression Coefficients for $CAR[0,+1]$}
+\label{fig:coef_0_p1}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.90\textwidth]{output/figures/car_coefficients_0_p5.png}
+\caption{Fixed-Effect Regression Coefficients for $CAR[0,+5]$}
+\label{fig:coef_0_p5}
+\end{figure}
+
+\section{Interpretation}
+
+The results suggest that the economic content of an 8-K matters more than the mere existence of a filing. Material agreements and financing disclosures have the largest positive post-event estimates relative to other events, while the immediate merger-and-acquisition estimate is negative in the preferred model. However, the transaction categories contain very few observations. Their estimates may reflect the characteristics of a small number of firms or events rather than a general market response.
+
+The earnings results require careful interpretation. An earnings-related 8-K can contain strongly positive or strongly negative information. Pooling both directions can produce a mean near zero even when individual filings generate large absolute returns. The item-code classification identifies the subject of the disclosure, not whether the information is favorable or unfavorable. A more informative earnings analysis would incorporate earnings surprises, analyst forecasts, or text-based sentiment.
+
+The fixed-effect models improve comparability by controlling for persistent differences across firms and broad differences across years. Nevertheless, their within-$R^2$ values remain below one percent. This is not surprising for daily stock returns, which contain substantial idiosyncratic variation, but it reinforces that filing category alone explains only a small portion of event-level CAR variation.
+
+\section{Robustness Checks and Extensions}
+
+Several extensions would strengthen the empirical design.
+
+\subsection{Market-Model Abnormal Returns}
+
+A more standard event-study benchmark estimates firm-specific market exposure over a pre-event estimation window, such as $[-120,-20]$:
+
+\begin{equation}
+R_{i,t}=\alpha_i+\beta_i R_{m,t}+\epsilon_{i,t}.
+\end{equation}
+
+The abnormal return is then
+
+\begin{equation}
+AR_{i,t}=R_{i,t}-\left(\widehat{\alpha}_i+\widehat{\beta}_iR_{m,t}\right).
+\end{equation}
+
+This approach allows firms to differ in their normal market sensitivity.
+
+\subsection{Acceptance Timestamps}
+
+The SEC acceptance timestamp can be used to distinguish filings submitted before the market close from filings submitted after hours. After-hours filings should generally be assigned to the next trading day. Timestamp-based alignment would improve event-date precision.
+
+\subsection{Overlapping Events}
+
+Some firms file multiple 8-Ks within a short interval. Excluding events with another 8-K within five trading days would reduce contamination from overlapping disclosures, although it would also reduce the sample.
+
+\subsection{Original Filings and Amendments}
+
+The main data include both 8-K and 8-K/A filings. Re-estimating the results using only original 8-K filings would test whether amendments have different information content.
+
+\subsection{News Direction}
+
+The item-code classification should be supplemented with a measure of whether the disclosure is positive or negative. Possible approaches include earnings surprises, merger announcement returns, manually coded event direction, or supervised text classification.
+
+\subsection{Sector Analysis}
+
+The regression-and-plot script contains code for a sector-level CAR summary when sector fields are available. The sector table and figure were not present among the committed outputs used for this report, so no sector estimates are reported here.
+
+\section{Limitations}
+
+\subsection{Filing Date Versus First Public Announcement}
+
+The SEC filing date may not be the first date on which the information became public. Earnings releases, merger announcements, and leadership changes may be announced through press releases or news coverage before the associated 8-K appears on EDGAR. Pre-filing abnormal returns may therefore reflect earlier public information rather than leakage.
+
+\subsection{Current-Constituent Survivorship Bias}
+
+The company universe uses current S\&P 500 constituents rather than historical membership. Firms that left the index, failed, or were acquired during 2018--2025 may be absent. The results should therefore be interpreted as evidence for a current-large-cap sample, not for a historically balanced S\&P 500 panel.
+
+\subsection{Yahoo Finance and Ticker Mapping}
+
+Yahoo Finance is convenient but does not provide the identifier stability and delisting treatment available in CRSP. Current ticker-to-CIK mappings can also be imperfect when firms change tickers, reorganize, merge, or maintain multiple share classes.
+
+\subsection{Small Event Categories}
+
+The material-agreement group contains 12 observations, the debt-or-financing group contains 5, and the merger or acquisition group contains 4. Conventional clustered standard errors do not eliminate the instability created by such small cell sizes. These coefficients should be treated as exploratory findings that require validation in a larger sample.
+
+\subsection{Confounding News}
+
+Other firm-specific or macroeconomic news can occur during the event window. The estimates measure returns associated with 8-K filing events but do not perfectly isolate the causal effect of the filing itself.
+
+\section{Conclusion}
+
+This project builds a reproducible R pipeline for studying short-run market reactions around SEC 8-K filings. It combines SEC filing metadata with daily equity returns, parses multi-item filing records, constructs trading-day event windows, calculates market-adjusted abnormal returns, summarizes cumulative abnormal returns, and estimates regressions with ticker and year fixed effects and ticker-clustered standard errors.
+
+The committed results contain 500 complete-window events and 496 observations in the main regressions. Material-agreement filings have the most consistent positive association with post-filing CARs: the preferred model estimates a 3.07 percentage-point higher $CAR[0,+5]$ relative to other events. Debt-or-financing filings also have a positive $CAR[0,+5]$ coefficient of 2.90 percentage points. Merger, acquisition, or asset-sale filings have a negative $CAR[0,+1]$ coefficient of 1.01 percentage points in the fixed-effect model. Earnings and leadership coefficients are not statistically significant.
+
+These estimates are informative as a portfolio and learning project, but they are not yet sufficient for strong substantive conclusions. Small category sizes, current-constituent survivorship bias, imperfect event timing, and the market-adjusted benchmark all limit inference. Expanding the sample, using historical identifiers and CRSP returns, incorporating SEC acceptance times, excluding overlapping events, and classifying the direction of news would move the analysis closer to a professional empirical event study.
+
+\end{document}

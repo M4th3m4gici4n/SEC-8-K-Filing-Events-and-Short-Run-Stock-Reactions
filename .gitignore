@@ -1,0 +1,9 @@
+
+# Generated market-return dataset
+data/interim/daily_returns.csv
+
+# LaTeX temporary files
+writeup/*.aux
+writeup/*.log
+writeup/*.out
+writeup/*.synctex.gz
